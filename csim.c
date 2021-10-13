@@ -22,18 +22,18 @@ typedef struct {
     int valid;
     unsigned long tag;
     int LRUcounter;
-} line;
+} line_t;
 
 typedef struct {
-    line *lines;
-} set;
+    line_t *lines;
+} set_t;
 
 typedef struct {
     int s;
     int E;
     int b;
-    set *sets;
-} cache;
+    set_t *sets;
+} cache_t;
 
 typedef struct {
     unsigned long hit;
@@ -42,36 +42,55 @@ typedef struct {
 } result;
 
 /**
+ * @brief Initialize a new cache
  * 
+ * @param[in] s Number of set index bits
+ * @param[in] E Associativity (number of lines per set)
+ * @param[in] b Number of block bits
+ * 
+ * @return The new cache, or NULL if memory allocation failed
  */
-cache *cache_init(int s, int E, int b) {
-    cache *new_cache = (cache *)malloc(sizeof(cache));
-    if (new_cache == NULL) {
+cache_t *cache_init(int s, int E, int b) {
+    cache_t *cache = (cache_t *)malloc(sizeof(cache_t));
+    if (cache == NULL) {
         printf("Malloc for cache failed\n");
         return NULL;
     }
-    new_cache->s = s;
-    new_cache->E = E;
-    new_cache->b = b;
+    cache->s = s;
+    cache->E = E;
+    cache->b = b;
 
     int S = 1 << s;
-    new_cache->sets = (set *)malloc(sizeof(set) * S);
-    if (new_cache->sets == NULL) {
+    cache->sets = (set_t *)malloc(sizeof(set_t) * S);
+    if (cache->sets == NULL) {
         printf("Malloc for set failed\n")
         return NULL;
     }
     for (int i = 0; i < S; i++) {
-        new_cache->sets[i].lines = (line *)malloc(sizeof(line) * E);
-        if (new_cache->sets[i].lines == NULL) {
+        cache->sets[i].lines = (line_t *)malloc(sizeof(line_t) * E);
+        if (cache->sets[i].lines == NULL) {
             printf("Malloc for line feiled\n");
         }
         for (int j = 0; j < E; j++) {
-            new_cache->sets[i].lines[j].valid = 0;
-            new_cache->sets[i].lines[j].LRUcounter = 0;
+            cache->sets[i].lines[j].valid = 0;
+            cache->sets[i].lines[j].LRUcounter = 0;
         }
     }
+    return cache;
+}
 
-    return new_cache;
+/**
+ * @brief Free all memory used by a cache
+ * 
+ * @param[in] cache the cache to free
+ */
+void cache_free(cache_t *cache) {
+    int S = 1 << cache->s;
+    for (int i = 0; i < S; i++) {
+        free(cache->sets[i].lines;
+    }
+    free(cache->sets);
+    free(cache);
 }
 
 int main(int argc, char *argv[]) {
@@ -102,17 +121,14 @@ int main(int argc, char *argv[]) {
     }
 
     csim_stats_t *status;
-    status->hits = hit;
-    status->misses = miss;
-    status->evictions = eviction;
+    status->hits = hits;
+    status->misses = misses;
+    status->evictions = evictions;
     status->dirty_bytes = dirty_bytes;
     status->dirty_evictions = dirty_evictions;
     printSummary(status);
 
-    // close file
-
-    // free memory
-
+    cache_free(cache);
 }
 
 void print_usage() {
