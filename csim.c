@@ -20,6 +20,7 @@
 
 typedef struct {
     int valid;
+    int dirty_bit;
     unsigned long tag;
     int LRUcounter;
 } line_t;
@@ -35,11 +36,12 @@ typedef struct {
     set_t *sets;
 } cache_t;
 
-typedef struct {
-    unsigned long hit;
-    unsigned long miss;
-    unsigned long eviction;
-} result;
+csim_stats_t *stats;
+stats->hits = 0;
+stats->misses = 0;
+stats->evictions = 0;
+stats->dirty_bytes = 0;
+stats->dirty_evictions = 0;
 
 /**
  * @brief Initialize a new cache
@@ -69,10 +71,11 @@ cache_t *cache_init(int s, int E, int b) {
     for (int i = 0; i < S; i++) {
         cache->sets[i].lines = (line_t *)malloc(sizeof(line_t) * E);
         if (cache->sets[i].lines == NULL) {
-            printf("Malloc for line feiled\n");
+            printf("Malloc for line failed\n");
         }
         for (int j = 0; j < E; j++) {
             cache->sets[i].lines[j].valid = 0;
+            cache->sets[i].lines[j].dirty_bit = 0;
             cache->sets[i].lines[j].LRUcounter = 0;
         }
     }
@@ -94,7 +97,10 @@ void cache_free(cache_t *cache) {
 }
 
 int main(int argc, char *argv[]) {
-    int s = 0, E = 0, b = 0;
+    int s, E, b = 0;
+    char* tracefile;
+
+    // parse arguments
     int opt;
     while ((opt = getopt(argc, argv, "hvs:E:b:t:")) != -1) {
         switch (opt) {
@@ -111,7 +117,7 @@ int main(int argc, char *argv[]) {
                 b = atol(optarg);
                 break;
             case 't':
-                // TODO
+                tracefile = optarg;
                 break;
             case 'h':
             default:
@@ -119,16 +125,35 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
+    
+    if (s <= 0 || E <= 0 || b <= 0 || t == NULL) {
+        printf("Invalid input!\n")
+        return -1;
+    }
 
-    csim_stats_t *status;
-    status->hits = hits;
-    status->misses = misses;
-    status->evictions = evictions;
-    status->dirty_bytes = dirty_bytes;
-    status->dirty_evictions = dirty_evictions;
-    printSummary(status);
+    FILE *pFile;
+    pFile = fopen(tracefile, "r");
+    if (pFile == NULL) {
+        printf("Open file error\n")
+        return -1;
+    }
+    char access_type;
+    unsigned long address;
+    int size;
+    while (fscanf(pFile, "%c %lx,%d", &access_type, &address, &size) > 0) {
+        if (access_type == "L") {
+            // load data
+        } else if (access_type == "S") {
+            // store data
+        }
+    }
+    fclose(pFile);
 
+    cache_t cache = cache_init(s, E, b);
     cache_free(cache);
+
+    printSummary(stats);
+    return 0;
 }
 
 void print_usage() {
