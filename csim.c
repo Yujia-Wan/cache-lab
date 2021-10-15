@@ -16,29 +16,40 @@
 
 #include "cachelab.h"
 
+/**
+ * @brief Line structure of a set
+ */
 typedef struct {
-    int valid;
-    int dirty_bit;
-    unsigned long tag;
-    unsigned long LRU_counter;
+    int valid;     /* valid bit set 1 if line has data loaded */
+    int dirty_bit; /* dirty bit set 1 if payload has been modified, but has not
+                      written back to memory */
+    unsigned long tag; /* tag of line */
+    unsigned long
+        LRU_counter; /* LRU counter, evict the block with max LRU counter */
 } line_t;
 
+/**
+ * @brief Set structure of a cache
+ */
 typedef struct {
-    line_t *lines;
+    line_t *lines; /* pointer to lines of a set */
 } set_t;
 
+/**
+ * @brief Cache structure with parameters
+ */
 typedef struct {
-    int s;
-    int E;
-    int b;
-    set_t *sets;
+    int s;       /* Number of set index bits */
+    int E;       /* Associativity (number of lines per set) */
+    int b;       /* Number of block bits */
+    set_t *sets; /* pointer to sets of a cache */
 } cache_t;
 
-unsigned long hit = 0;
-unsigned long miss = 0;
-unsigned long eviction = 0;
-unsigned long dirty_bytes = 0;
-unsigned long dirty_evictions = 0;
+unsigned long hit = 0;             /* number of hits */
+unsigned long miss = 0;            /* number of misses */
+unsigned long eviction = 0;        /* number of evictions */
+unsigned long dirty_bytes = 0;     /* number of dirty bytes in cache at end */
+unsigned long dirty_evictions = 0; /* number of dirty bytes evicted */
 
 /**
  * @brief Initialize a new cache
@@ -113,23 +124,30 @@ void print_usage() {
            "-t <tracefile>: Name of the memory trace to replay");
 }
 
+/**
+ * @brief Add LRU counter of unused lines
+ */
 void add_LRU_counter(set_t *set_access, int begin_index, int end_index) {
     for (int i = begin_index; i < end_index; i++) {
         set_access->lines[i].LRU_counter++;
     }
 }
 
+/**
+ * @brief A cache simulator to simulate the behavior of a cache memory with data
+ * load and store
+ */
 void cache_sim(char access_type, set_t *set_access, unsigned long tag, int E,
-               int b) {
+               int b, bool verbose) {
     unsigned long B = (unsigned long)(1 << b);
-    // printf("B = %lx\n", B);
-    // is hit?
     int hit_flag = 0;
     int hit_index = 0;
     for (int i = 0; i < E; i++) {
         line_t *line_access = &(set_access->lines[i]);
         if (line_access->tag == tag && line_access->valid == 1) {
-            // hit
+            if (verbose) {
+                printf("hit\n");
+            }
             hit++;
             line_access->LRU_counter = 0;
             hit_flag = 1;
@@ -141,24 +159,25 @@ void cache_sim(char access_type, set_t *set_access, unsigned long tag, int E,
     }
     if (hit_flag == 1) {
         add_LRU_counter(set_access, hit_index + 1, E);
-        if (access_type == 'S') {
-            if (set_access->lines[hit_index].dirty_bit == 0) {
-                set_access->lines[hit_index].dirty_bit = 1;
-                dirty_bytes += B;
-            }
+        if (access_type == 'S' && set_access->lines[hit_index].dirty_bit == 0) {
+            set_access->lines[hit_index].dirty_bit = 1;
+            dirty_bytes += B;
         }
         return;
     }
 
-    // miss
+    if (verbose) {
+        printf("miss");
+    }
     miss++;
-    // need eviction?
     int flag = 0;
     int index = 0;
     for (int i = 0; i < E; i++) {
         line_t *line_access = &(set_access->lines[i]);
         if (line_access->valid == 0) {
-            // have empty line
+            if (verbose) {
+                printf("\n");
+            }
             line_access->valid = 1;
             line_access->tag = tag;
             line_access->LRU_counter = 0;
@@ -169,7 +188,6 @@ void cache_sim(char access_type, set_t *set_access, unsigned long tag, int E,
             line_access->LRU_counter++;
         }
     }
-
     if (flag == 1) {
         add_LRU_counter(set_access, index + 1, E);
         if (access_type == 'S') {
@@ -179,9 +197,10 @@ void cache_sim(char access_type, set_t *set_access, unsigned long tag, int E,
         return;
     }
 
-    // eviction
+    if (verbose) {
+        printf(" eviction\n");
+    }
     eviction++;
-    // find index of the LRU line
     int evict_index = 0;
     unsigned long max_counter = set_access->lines[0].LRU_counter;
     for (int i = 1; i < E; i++) {
@@ -190,11 +209,11 @@ void cache_sim(char access_type, set_t *set_access, unsigned long tag, int E,
             evict_index = i;
         }
     }
-    // evict
     set_access->lines[evict_index].tag = tag;
     set_access->lines[evict_index].LRU_counter = 0;
     add_LRU_counter(set_access, 0, evict_index);
     add_LRU_counter(set_access, evict_index + 1, E);
+
     if (set_access->lines[evict_index].dirty_bit == 0 && access_type == 'S') {
         set_access->lines[evict_index].dirty_bit = 1;
         dirty_bytes += B;
@@ -216,6 +235,7 @@ void cache_sim(char access_type, set_t *set_access, unsigned long tag, int E,
 
 int main(int argc, char *argv[]) {
     int s, E, b = 0;
+    bool verbose = false;
     char *tracefile;
 
     int opt;
@@ -234,12 +254,11 @@ int main(int argc, char *argv[]) {
             tracefile = optarg;
             break;
         case 'v':
-            // TODO
+            verbose = true;
             break;
         case 'h':
         default:
             print_usage();
-            break;
         }
     }
 
@@ -249,7 +268,6 @@ int main(int argc, char *argv[]) {
     }
 
     cache_t *cache = cache_init(s, E, b);
-
     FILE *pFile;
     pFile = fopen(tracefile, "r");
     if (pFile == NULL) {
@@ -263,9 +281,11 @@ int main(int argc, char *argv[]) {
         unsigned long set_index = (address >> b) & ((1 << s) - 1);
         unsigned long tag = address >> (s + b);
         set_t *set_access = &(cache->sets[set_index]);
-        printf("%c %lx %d ", access_type, address, size);
+        if (verbose) {
+            printf("%c %lx,%d ", access_type, address, size);
+        }
         if ((access_type == 'L') || (access_type == 'S')) {
-            cache_sim(access_type, set_access, tag, E, b);
+            cache_sim(access_type, set_access, tag, E, b, verbose);
         } else {
             printf("Tracefile error\n");
             return -1;
