@@ -25,8 +25,7 @@
  *   - You may not use unions, casting, global variables, or
  *     other tricks to hide array data in other forms of local or global memory.
  *
- * TODO: fill in your name and Andrew ID below.
- * @author Your Name <andrewid@andrew.cmu.edu>
+ * @author Yujia Wang <yujiawan@andrew.cmu.edu>
  */
 
 #include <assert.h>
@@ -70,6 +69,60 @@ static bool is_transpose(size_t M, size_t N, double A[N][M], double B[M][N]) {
  * some simple ones below to help you get started, which you should
  * feel free to modify or delete.
  */
+static void trans_blocking(size_t M, size_t N, double A[N][M], double B[M][N],
+                           double tmp[TMPCOUNT]) {
+    assert(M > 0);
+    assert(N > 0);
+
+    for (size_t i = 0; i < N; i += 8) {
+        for (size_t j = 0; j < M; j += 8) {
+            for (size_t m = i; m < i + 8; m++) {
+                for (size_t n = j; n < j + 8; n++) {
+                    B[n][m] = A[m][n];
+                }
+            }
+        }
+    }
+
+    assert(is_transpose(M, N, A, B));
+}
+
+static void trans_blocking_diagonal(size_t M, size_t N, double A[N][M],
+                                    double B[M][N], double tmp[TMPCOUNT]) {
+    assert(M > 0);
+    assert(N > 0);
+
+    for (size_t i = 0; i < N; i += 8) {
+        for (size_t j = 0; j < M; j += 8) {
+            for (size_t m = i; m < i + 8; m++) {
+                if (i == j) {
+                    tmp[0] = A[m][j];
+                    tmp[1] = A[m][j + 1];
+                    tmp[2] = A[m][j + 2];
+                    tmp[3] = A[m][j + 3];
+                    tmp[4] = A[m][j + 4];
+                    tmp[5] = A[m][j + 5];
+                    tmp[6] = A[m][j + 6];
+                    tmp[7] = A[m][j + 7];
+                    B[j][m] = tmp[0];
+                    B[j + 1][m] = tmp[1];
+                    B[j + 2][m] = tmp[2];
+                    B[j + 3][m] = tmp[3];
+                    B[j + 4][m] = tmp[4];
+                    B[j + 5][m] = tmp[5];
+                    B[j + 6][m] = tmp[6];
+                    B[j + 7][m] = tmp[7];
+                } else {
+                    for (size_t n = j; n < j + 8; n++) {
+                        B[n][m] = A[m][n];
+                    }
+                }
+            }
+        }
+    }
+
+    assert(is_transpose(M, N, A, B));
+}
 
 /**
  * @brief A simple baseline transpose function, not optimized for the cache.
@@ -124,10 +177,17 @@ static void trans_tmp(size_t M, size_t N, double A[N][M], double B[M][N],
  */
 static void transpose_submit(size_t M, size_t N, double A[N][M], double B[M][N],
                              double tmp[TMPCOUNT]) {
-    if (M == N)
-        trans_basic(M, N, A, B, tmp);
-    else
+    if (M == N) {
+        if (M == 32) {
+            trans_blocking_diagonal(M, N, A, B, tmp);
+        } else if (M == 1024) {
+            trans_blocking(M, N, A, B, tmp);
+        } else {
+            trans_basic(M, N, A, B, tmp);
+        }
+    } else {
         trans_tmp(M, N, A, B, tmp);
+    }
 }
 
 /**
@@ -142,6 +202,7 @@ void registerFunctions(void) {
     registerTransFunction(transpose_submit, SUBMIT_DESCRIPTION);
 
     // Register any additional transpose functions
-    registerTransFunction(trans_basic, "Basic transpose");
-    registerTransFunction(trans_tmp, "Transpose using the temporary array");
+    registerTransFunction(trans_blocking, "Transpose using blocking");
+    registerTransFunction(trans_blocking_diagonal,
+                          "Transpose using blocking and diagonal");
 }
