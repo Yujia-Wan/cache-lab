@@ -77,15 +77,15 @@ static void trans_blocking_diagonal(size_t M, size_t N, double A[N][M],
         for (j = 0; j < N; j += 8) {
             for (m = i; m < i + 8; m++) {
                 for (n = j; n < j + 8; n++) {
-                    if (m != n) {
-                        B[n][m] = A[m][n];
-                    } else {
-                        tmp[TMPCOUNT] = A[n][n];
+                    if (m == n) {
+                        tmp[TMPCOUNT - 1] = A[n][n];
                         index = n;
+                    } else {
+                        B[n][m] = A[m][n];
                     }
                 }
                 if (i == j) {
-                    B[index][index] = tmp[TMPCOUNT];
+                    B[index][index] = tmp[TMPCOUNT - 1];
                 }
             }
         }
