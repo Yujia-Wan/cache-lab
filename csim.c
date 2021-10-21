@@ -20,8 +20,9 @@
  * @brief Line structure of a set
  */
 typedef struct {
-    int valid;         /* valid bit set 1 if line has data loaded */
-    int dirty_bit;     /* dirty bit set 1 if payload has been modified, but has not written back to memory */
+    int valid;     /* valid bit set 1 if line has data loaded */
+    int dirty_bit; /* dirty bit set 1 if payload has been modified, but has not
+                      written back to memory */
     unsigned long tag; /* tag of line */
     unsigned long
         LRU_counter; /* LRU counter, evict the block with max LRU counter */
