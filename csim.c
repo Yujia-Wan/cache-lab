@@ -20,9 +20,8 @@
  * @brief Line structure of a set
  */
 typedef struct {
-    int valid;     /* valid bit set 1 if line has data loaded */
-    int dirty_bit; /* dirty bit set 1 if payload has been modified, but has not
-                      written back to memory */
+    int valid;         /* valid bit set 1 if line has data loaded */
+    int dirty_bit;     /* dirty bit set 1 if payload has been modified, but has not written back to memory */
     unsigned long tag; /* tag of line */
     unsigned long
         LRU_counter; /* LRU counter, evict the block with max LRU counter */
@@ -91,6 +90,7 @@ cache_t *cache_init(int s, int E, int b) {
         for (int j = 0; j < E; j++) {
             cache->sets[i].lines[j].valid = 0;
             cache->sets[i].lines[j].dirty_bit = 0;
+            cache->sets[i].lines[j].tag = 0;
             cache->sets[i].lines[j].LRU_counter = 0;
         }
     }
